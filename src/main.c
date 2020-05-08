@@ -214,32 +214,32 @@ bool run(int idx)
 	case 0b000000:/*printf("sll"); break;*/ goto RFORMAT; 
 
 		//Arithmetic and Logical Instructions
-	case 0b001000: reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
-	case 0b001001: reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
-	case 0b001100: reg[mips.I.rt] = reg[mips.I.rs] & mips.I.immediate; break;
-	case 0b001101: reg[mips.I.rt] = reg[mips.I.rs] | mips.I.immediate; break;
-	case 0b001110: reg[mips.I.rt] = reg[mips.I.rs] ^ mips.I.immediate; break;
+	case 0b001001:/*addi*/ reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
+	case 0b001000:/*addiu*/reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
+	case 0b001100:/*andi*/ reg[mips.I.rt] = reg[mips.I.rs] & mips.I.immediate; break;
+	case 0b001101:/*ori"*/ reg[mips.I.rt] = reg[mips.I.rs] | mips.I.immediate; break;
+	case 0b001110:/*xori*/ reg[mips.I.rt] = reg[mips.I.rs] ^ mips.I.immediate; break;
 		//comparion instructions
-	case 0b001010: /*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; break;
-	case 0b001011: /*sltui*/reg[mips.I.rt]=(reg[mips.I.rs]<(uint32_t)mips.I.immediate)?0x1:0x0; break;
+	case 0b001010:/*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; break;
+	case 0b001011:/*sltui*/reg[mips.I.rt]=(reg[mips.I.rs]<(uint32_t)mips.I.immediate)?0x1:0x0; break;
 		//branch instructions
-	case 0b000100: return true;
-	case 0b000101: return true;
+	case 0b000100:/*beq*/ return true;
+	case 0b000101:/*bne*/ return true;
 		//load instructions
-	case 0b100000: goto LOAD_IFORMAT;
-	case 0b100100: goto LOAD_IFORMAT;
-	case 0b100001: goto LOAD_IFORMAT;
-	case 0b100101: goto LOAD_IFORMAT;
-	case 0b100011: goto LOAD_IFORMAT;
+	case 0b100000:/*lb*/ goto LOAD_IFORMAT;
+	case 0b100100:/*lbu*/goto LOAD_IFORMAT;
+	case 0b100001:/*lh*/ goto LOAD_IFORMAT;
+	case 0b100101:/*lhu*/goto LOAD_IFORMAT;
+	case 0b100011:/*lw*/ goto LOAD_IFORMAT;
 		//should be checked
-	case 0b001111: reg[mips.I.rt] = (mips.I.immediate<<16); return true;
+	case 0b001111:/*lui*/ reg[mips.I.rt] = (mips.I.immediate<<16); return true;
 		//store instructions			
-	case 0b101000: goto LOAD_IFORMAT;
-	case 0b101001: goto LOAD_IFORMAT;
-	case 0b101011: goto LOAD_IFORMAT;
+	case 0b101000:/*sb*/ goto LOAD_IFORMAT;
+	case 0b101001:/*sh*/ goto LOAD_IFORMAT;
+	case 0b101011:/*sw*/ goto LOAD_IFORMAT;
 		//jump instructions
-	case 0b000010: return true;
-	case 0b000011: return true;
+	case 0b000010:/*j*/   return true;
+	case 0b000011:/*jal*/ return true;
 
 	default: goto UNKWON;
 	}
@@ -252,45 +252,43 @@ LOAD_IFORMAT:
 RFORMAT:
 	switch (mips.R.funct)
 	{
-	case 0b000000: /*sll*/reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<mips.R.shamt; goto SHIFT_RFORMAT;
-	case 0b000010: /*srl*/reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
-	case 0b000011: /*sra*/reg[mips.R.rd]=reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
+	case 0b000000:/*sll*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<mips.R.shamt; goto SHIFT_RFORMAT;
+	case 0b000010:/*srl*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
+	case 0b000011:/*sra*/ reg[mips.R.rd]=reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
 		//Arithmetic and Logical Instructions
-	case 0b100000: reg[mips.R.rd] = reg[mips.R.rs] + reg[mips.R.rt]; break;
-	case 0b100001: /*addu*/reg[mips.R.rd] = reg[mips.R.rs] + reg[mips.R.rt]; break;
-	case 0b100010: reg[mips.R.rd] = reg[mips.R.rs] - reg[mips.R.rt]; break;
-	case 0b100011: reg[mips.R.rd] = reg[mips.R.rs] - reg[mips.R.rt]; break;
-	case 0b011010: break;
-	case 0b011011: break;
-	case 0b011000: return true;
-	case 0b011001: return true;
-	case 0b100100: reg[mips.R.rd] = reg[mips.R.rs] & reg[mips.R.rt]; break;
-	case 0b100101: reg[mips.R.rd] = reg[mips.R.rs] | reg[mips.R.rt]; break;
-	case 0b100110: reg[mips.R.rd] = reg[mips.R.rs] ^ reg[mips.R.rt]; break;
-	case 0b100111: /*nor*/ reg[mips.R.rd]=~(reg[mips.R.rs]|reg[mips.R.rt]); break;
-	case 0b000100: /*sllv*/reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<reg[mips.R.rs]; break;
-	case 0b000110: /*srlv*/reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>reg[mips.R.rs]; break;
-	case 0b000111: /*srav*/reg[mips.R.rd]=reg[mips.R.rt]>>reg[mips.R.rs]; break;
+	case 0b100000:/*add*/  reg[mips.R.rd] = reg[mips.R.rs]+reg[mips.R.rt]; break;
+	case 0b100001:/*addu*/ reg[mips.R.rd] = reg[mips.R.rs]+reg[mips.R.rt]; break;
+	case 0b100010:/*sub*/  reg[mips.R.rd] = reg[mips.R.rs]-reg[mips.R.rt]; break;
+	case 0b100011:/*subu*/ reg[mips.R.rd] = reg[mips.R.rs]-reg[mips.R.rt]; break;
+	case 0b011010:/*div*/  break;
+	case 0b011011:/*divu*/ break;
+	case 0b011000:/*mult*/ return true;
+	case 0b011001:/*multu*/return true;
+	case 0b100100:/*and*/  reg[mips.R.rd] = reg[mips.R.rs]&reg[mips.R.rt]; break;
+	case 0b100101:/*or"*/  reg[mips.R.rd] = reg[mips.R.rs]|reg[mips.R.rt]; break;
+	case 0b100110:/*xor*/  reg[mips.R.rd] = reg[mips.R.rs]^reg[mips.R.rt]; break;
+	case 0b100111:/*nor*/  reg[mips.R.rd] = ~(reg[mips.R.rs]|reg[mips.R.rt]); break;
+	case 0b000100:/*sllv*/ reg[mips.R.rd] = (uint32_t)reg[mips.R.rt]<<reg[mips.R.rs]; break;
+	case 0b000110:/*srlv*/ reg[mips.R.rd] = (uint32_t)reg[mips.R.rt]>>reg[mips.R.rs]; break;
+	case 0b000111:/*srav*/ reg[mips.R.rd]=reg[mips.R.rt]>>reg[mips.R.rs]; break;
 		//comparion instructions
-	case 0b101010: /*slt*/ reg[mips.R.rd]=(reg[mips.R.rs]<reg[mips.R.rt])?0x1:0x0; break;
-	case 0b101011: /*sltu*/reg[mips.R.rd]=(reg[mips.R.rs]<(uint32_t)reg[mips.R.rt])?0x1:0x0; break;
+	case 0b101010:/*slt*/  reg[mips.R.rd]=(reg[mips.R.rs]<reg[mips.R.rt])?0x1:0x0; break;
+	case 0b101011:/*sltu*/ reg[mips.R.rd]=(reg[mips.R.rs]<(uint32_t)reg[mips.R.rt])?0x1:0x0; break;
 		//load instructions
-	case 0b010000: return true;
-	case 0b010010: return true;
-	case 0b010001: return true;
-	case 0b010011: return true;
+	case 0b010000:/*mfhi*/ return true;
+	case 0b010010:/*mflo*/ return true;
+	case 0b010001:/*mthi*/ return true;
+	case 0b010011:/*mtlo*/ return true;
 		//jump instructions
-	case 0b001000: return true;
-	case 0b001001: return true;
+	case 0b001000:/*jr*/   return true;
+	case 0b001001:/*jalr*/ return true;
 		//syscall
-	case 0b001100: return true;
+	case 0b001100:/*syscall*/ return true;
 
 	default: goto UNKWON;
 	}
 	return true;
-SHIFT_RFORMAT:
-	
-	return true;
+SHIFT_RFORMAT: return true;
 UNKWON:
 	printf("unknown instruction\n");
 	return false;
@@ -367,10 +365,12 @@ INPUT:
 	{
 		for(int i = 0; i < 32; i ++) printf("$%d: 0x%08x\n", i, reg[i]);
 		printf("PC: 0x%08x\n", PC);
+		printf("HI: \n");
+		printf("LO: \n");
 		goto INPUT;
 	}
 //***********************************************
-//debugging code for proj2
+//debugging code for proj3
 /*	else if(!strncmp(&input[0], "memory", 6))
 	{
 		for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &memory[i], memory[i]);
