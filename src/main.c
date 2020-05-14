@@ -205,7 +205,7 @@ bool run(int idx)
 
 	PC += 4;
 	if(inst_memory[idx]==0xffffffff) goto UNKWON;
-	memcpy(&mips, &memory[idx], sizeof(MIPS));
+	memcpy(&mips, &inst_memory[idx], sizeof(MIPS));
 
 	//printInst(mips, idx);
 
