@@ -1,0 +1,70 @@
+instructions:
+lui     $2,0x1000     //Make $2 to 0x10000000
+lw      $3,0($2)      //Load word from address 0x10000000 : 0x12345678
+lw      $4,4($2)      //Load word from address 0x10000004 : 0xa0b0c0d0
+lw      $5,8($2)      //Load word from address 0x10000008 : 0x80ffffff <- 0x80 is loaded at 0x10000008, and for 0x10000009-0x1000000b, the data memory should return the default value (0xFF)
+lui     $6,0xdead     //
+ori     $6,$6,0xbeef  //Make $6 to 0xdeadbeef
+sw      $6,16($2)     //Store $6 to 0x10000010
+lw      $7,16($2)     //Load word from 0x10000010 : 0xdeadbeef
+lh      $8,16($2)     //Load half word from 0x10000010 (0xdead), and sign-extend it : 0xffffdead <- this will result in a different valid in MARS simulator, which uses little-endian
+lhu     $9,16($2)     //Load half word from 0x10000010 (0xdead), and zero-extend it : 0x0000dead <- this will result in a different valid in MARS simulator, which uses little-endian
+sb      $0,18($2)     //Store a byte of 0x0 register (0xff) to 0x10000012 
+lbu     $10,17($2)    //Load a byte of 0x10000011: 0xad, and zero-extend it: 0x000000ad  <- this will result in a different valid in MARS simulator, which uses little-endian
+lbu     $11,18($2)    //Load a byte of 0x10000012: 0x00, and zero-extend it: 0x00000000
+lbu     $12,19($2)    //Load a byte of 0x10000013: 0xef, and zero-extend it: 0x000000ef  <- this will result in a different valid in MARS simulator, which uses little-endian
+lw      $0,0($0)      //Loading from address 0x0 -> out of bound error
+nop                   //nop
+
+data:
+0x10000000: 12 34 56 78
+0x10000004: a0 b0 c0 d0
+0x10000008: 80
+
+Expected output:
+mips-sim> loadinst test2_t.dat
+mips-sim> loaddata test2_d.dat
+mips-sim> run 100
+Memory address out of range: 0x00000000
+Executed 15 instructions
+mips-sim> registers
+PC: 0x0000003c
+$0: 0x00000000
+$1: 0x00000000
+$2: 0x10000000
+$3: 0x12345678
+$4: 0xa0b0c0d0
+$5: 0x80ffffff
+$6: 0xdeadbeef
+$7: 0xdeadbeef
+$8: 0xffffdead
+$9: 0x0000dead
+$10: 0x000000ad
+$11: 0x00000000
+$12: 0x000000ef
+$13: 0x00000000
+$14: 0x00000000
+$15: 0x00000000
+$16: 0x00000000
+$17: 0x00000000
+$18: 0x00000000
+$19: 0x00000000
+$20: 0x00000000
+$21: 0x00000000
+$22: 0x00000000
+$23: 0x00000000
+$24: 0x00000000
+$25: 0x00000000
+$26: 0x00000000
+$27: 0x00000000
+$28: 0x00000000
+$29: 0x00000000
+$30: 0x00000000
+$31: 0x00000000
+HI: 0x00000000
+LO: 0x00000000
+PC: 0x0000003c
+mips-sim>
+
+
+

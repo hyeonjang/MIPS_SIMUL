@@ -1,0 +1,69 @@
+instructions:
+lui     $t0,0x1000    //make $t0 to 0x10000000 
+lw      $a0,0($t0)    //Load word from 0x10000000 to $0
+addi    $v0,$zero,1   //set $v0 = 1
+syscall               //Invoke syscall number 1: print integer at $a0 :  0x7e4 = 2020
+lui     $a0,0x1000    
+addi    $a0,$a0,4     //make $t0 to 0x10000004
+addi    $v0,$zero,4   //set $v0 = 4
+syscall               //Invoke syscall number 4: print string starting from $a0 : "\n"
+lui     $a0,0x1000
+addi    $a0,$a0,6     //make $t0 to 0x10000004
+addi    $v0,$zero,4   //set $v0 = 4
+syscall               //Invoke syscall number 4: print string starting from $a0 : "Hello World\n"
+addi    $v0,$zero,10  //set $v0 = 10
+syscall               //Invoke syscall number 10: exit
+
+data:
+0x10000000: 00 00 07 e4
+0x10000004: 0a 00 48 65
+0x10000008: 6c 6c 6f 20
+0x1000000c: 57 6f 72 6c
+0x10000010: 64 0a 00
+
+Expected output:
+mips-sim> loadinst test4_t.dat
+mips-sim> loaddata test4_d.dat
+mips-sim> run 100
+2020
+Hello World
+EXIT syscall
+Executed 14 instructions
+mips-sim> registers
+PC: 0x00000038
+$0: 0x00000000
+$1: 0x00000000
+$2: 0x0000000a
+$3: 0x00000000
+$4: 0x10000006
+$5: 0x00000000
+$6: 0x00000000
+$7: 0x00000000
+$8: 0x10000000
+$9: 0x00000000
+$10: 0x00000000
+$11: 0x00000000
+$12: 0x00000000
+$13: 0x00000000
+$14: 0x00000000
+$15: 0x00000000
+$16: 0x00000000
+$17: 0x00000000
+$18: 0x00000000
+$19: 0x00000000
+$20: 0x00000000
+$21: 0x00000000
+$22: 0x00000000
+$23: 0x00000000
+$24: 0x00000000
+$25: 0x00000000
+$26: 0x00000000
+$27: 0x00000000
+$28: 0x00000000
+$29: 0x00000000
+$30: 0x00000000
+$31: 0x00000000
+HI: 0x00000000
+LO: 0x00000000
+PC: 0x00000038
+mips-sim>

@@ -51,7 +51,7 @@ int32_t HI;
 int32_t LO;
 uint32_t* inst_memory;
 uint32_t* data_memory;
-uint32_t PC;
+uint32_t PC, i_mem_start_point, d_mem_start_point;
 
 fileInfo setFileInfo(FILE* file)
 {
@@ -193,11 +193,15 @@ uint32_t* initMem()
 {
 	inst_memory = malloc(sizeof(uint32_t)*MEMSIZE);
 	for(int i=0;i<MEMSIZE;i++) inst_memory[i]=0xffffffff;
-	PC = inst_memory-inst_memory;
+	PC=i_mem_start_point = inst_memory-inst_memory;
+
+	data_memory = malloc(sizeof(uint32_t)*MEMSIZE);
+	for(int i=0;i<MEMSIZE;i++) data_memory[i]=0xffffffff;
+	d_mem_start_point = data_memory-data_memory+0x10000000;
 }
 
-void loadInst(MIPS mips, int idx)	  {	memcpy(&inst_memory[idx], &mips, sizeof(MIPS)); }
-void loadData( uint32_t* data, int idx ){ memcpy( &data_memory[idx], &data, sizeof( uint32_t ) ); }
+void loadInst( MIPS mips, int idx )	{ memcpy( &inst_memory[idx], &mips, sizeof(MIPS) ); }
+void loadData( uint32_t* data, int idx ){ memcpy( &data_memory[idx], &data, sizeof(uint32_t) ); }
 
 bool run(int idx)
 {
@@ -215,11 +219,11 @@ bool run(int idx)
 	case 0b000000:/*printf("sll"); break;*/ goto RFORMAT; 
 
 		//Arithmetic and Logical Instructions
-	case 0b001001:/*addi*/ reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
-	case 0b001000:/*addiu*/reg[mips.I.rt] = reg[mips.I.rs] + mips.I.immediate; break;
-	case 0b001100:/*andi*/ reg[mips.I.rt] = reg[mips.I.rs] & mips.I.immediate; break;
-	case 0b001101:/*ori"*/ reg[mips.I.rt] = reg[mips.I.rs] | mips.I.immediate; break;
-	case 0b001110:/*xori*/ reg[mips.I.rt] = reg[mips.I.rs] ^ mips.I.immediate; break;
+	case 0b001001:/*addi*/ reg[mips.I.rt]=reg[mips.I.rs]+mips.I.immediate; break;
+	case 0b001000:/*addiu*/reg[mips.I.rt]=reg[mips.I.rs]+(uint32_t)mips.I.immediate; break;
+	case 0b001100:/*andi*/ reg[mips.I.rt]=reg[mips.I.rs]&mips.I.immediate; break;
+	case 0b001101:/*ori"*/ reg[mips.I.rt]=reg[mips.I.rs]|mips.I.immediate; break;
+	case 0b001110:/*xori*/ reg[mips.I.rt]=reg[mips.I.rs]^mips.I.immediate; break;
 		//comparion instructions
 	case 0b001010:/*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; break;
 	case 0b001011:/*sltui*/reg[mips.I.rt]=(reg[mips.I.rs]<(uint32_t)mips.I.immediate)?0x1:0x0; break;
@@ -263,8 +267,8 @@ RFORMAT:
 	case 0b100011:/*subu*/ reg[mips.R.rd]=reg[mips.R.rs]-reg[mips.R.rt]; break;
 	case 0b011010:/*div*/  break;
 	case 0b011011:/*divu*/ break;
-	case 0b011000:/*mult*/ return true;
-	case 0b011001:/*multu*/return true;
+	case 0b011000:/*mult*/ LO=reg[mips.R.rs]*reg[mips.R.rt]; return true;
+	case 0b011001:/*multu*/LO=reg[mips.R.rs]*reg[mips.R.rt]; return true;
 	case 0b100100:/*and*/  reg[mips.R.rd]=reg[mips.R.rs]&reg[mips.R.rt]; break;
 	case 0b100101:/*or"*/  reg[mips.R.rd]=reg[mips.R.rs]|reg[mips.R.rt]; break;
 	case 0b100110:/*xor*/  reg[mips.R.rd]=reg[mips.R.rs]^reg[mips.R.rt]; break;

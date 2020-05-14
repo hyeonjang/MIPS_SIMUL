@@ -1,0 +1,97 @@
+instructions:
+addiu $30, $0, 1234   //make $30 to 1234 decimal
+addiu $31, $0, 10     //make $31 to 10 decimal
+div $30, $31          //signed division 1234/10
+mfhi $3               //$3: Remainder 1234%10 = 4
+mflo $4               //$4: Quotient 1234/10 = 123
+addiu $30, $0, 1234   //make $30 to 1234 decimal
+addiu $31, $0, -1     //make $31 to 0xFFFFFFFF (-1 in signed, 4294967295 in unsigned)
+div $30, $31          //signed division 1234/-1 
+mfhi $5               //$5: Remainder 1234%-1 = 0 
+mflo $6               //$6: Quotient 1234/-1 = -1234 = 0xfffffb2e
+sll $0, $0, 0         //nop
+sll $0, $0, 0         //nop
+divu $30, $31         //unsigned division 1234/4294967295
+mfhi $7               //$7: Remainder 1234%4294967295 = 1234 
+mflo $8               //$8: Quotient 1234/4294967295 = 0
+addiu $30, $0, -1     //make $30 to 0xFFFFFFFF (-1 in signed, 4294967295 in unsigned)
+lui $31, 0x8000       //make $31 to 0x80000000 (-2147483648 in signed, 2147483648 in unsigned)
+div $30, $31          //signed division -1/-2147483648
+mfhi $9               //$9: Remainder -1%-2147483648 = -1 = 0xFFFFFFFF
+mflo $10              //$10: Quotient -1/-2147483648 = 0
+sll $0, $0, 0         //nop
+sll $0, $0, 0         //nop
+divu $30, $31         //unsigned division 4294967295/2147483648
+mfhi $11              //$11: Remainder 4294967295/2147483648 = 2147483647 = 0x7fffffff
+mflo $12              //$12: Quotient  4294967295/2147483648 = 1
+addiu $30, $0, 10     //make $30 to 10 decimal
+addiu $31, $0, 20     //make $31 to 20 decimal
+mult $30, $31         //signed multiplication 10*20 = 200 = 0x00000000000000c8
+mfhi $13              //$13: bit[63:32] = 0
+mflo $14              //$14: bit[31:0]  = 0x000000c8
+lui $30, 1            //make $30 to 0x00010000 = 65536
+lui $31, 1            //make $31 to 0x00010000
+ori $31, $31, 0x2345  //make $31 to 0x00012345 = 74565
+mult $30, $31         //signed multiplication 65536*74565 = 4886691840 = 0x0000000123450000
+mfhi $15              //$15: bit[63:32] = 0x00000001
+mflo $16              //$16: bit[31:0]  = 0x23450000
+addiu $30, $0, 1      //make $30 to 2
+addiu $31, $0, -1     //make $31 to 0xFFFFFFFF (-1 in signed, 4294967295 in unsigned)
+mult $30, $31         //signed multiplication 2*-1 = -2 = 0xFFFFFFFFFFFFFFFE
+mfhi $17              //$17: bit[63:32] = 0xFFFFFFFF
+mflo $18              //$18: bit[31:0]  = 0xFFFFFFFE
+sll $0, $0, 0         //nop
+sll $0, $0, 0         //nop
+multu $30, $31        //unsigned multiplication 2*4294967295 = 8589934590 = 0x00000001FFFFFFFE
+mfhi $19              //$19: bit[63:32] = 0x00000001
+mflo $20              //$20: bit[31:0]  = 0xFFFFFFFE
+sll $0, $0, 0         //nop
+mthi $0               //make HI to 0
+mtlo $0               //make LO to 0
+
+data:
+no data file
+
+Expected output:
+mips-sim> loadinst test1_t.dat
+mips-sim> run 50
+unknown instruction
+Executed 50 instructions
+mips-sim> registers
+PC: 0x000000c8
+$0: 0x00000000
+$1: 0x00000000
+$2: 0x00000000
+$3: 0x00000004
+$4: 0x0000007b
+$5: 0x00000000
+$6: 0xfffffb2e
+$7: 0x000004d2
+$8: 0x00000000
+$9: 0xffffffff
+$10: 0x00000000
+$11: 0x7fffffff
+$12: 0x00000001
+$13: 0x00000000
+$14: 0x000000c8
+$15: 0x00000001
+$16: 0x23450000
+$17: 0xffffffff
+$18: 0xfffffffe
+$19: 0x00000001
+$20: 0xfffffffe
+$21: 0x00000000
+$22: 0x00000000
+$23: 0x00000000
+$24: 0x00000000
+$25: 0x00000000
+$26: 0x00000000
+$27: 0x00000000
+$28: 0x00000000
+$29: 0x00000000
+$30: 0x00000002
+$31: 0xffffffff
+HI: 0x00000000
+LO: 0x00000000
+PC: 0x000000c8
+mips-sim>
