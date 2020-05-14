@@ -47,7 +47,10 @@ typedef union MIPS_t  //It is litte Endian
 } MIPS;
 
 int32_t reg[32];
-uint32_t* memory;
+int32_t HI;
+int32_t LO;
+uint32_t* inst_memory;
+uint32_t* data_memory;
 uint32_t PC;
 
 fileInfo setFileInfo(FILE* file)
@@ -188,15 +191,13 @@ void initReg()
 
 uint32_t* initMem()
 {
-	memory = malloc(sizeof(uint32_t)*MEMSIZE);
-	for(int i=0;i<MEMSIZE;i++) memory[i]=0xffffffff;
-	PC = memory - memory;
+	inst_memory = malloc(sizeof(uint32_t)*MEMSIZE);
+	for(int i=0;i<MEMSIZE;i++) inst_memory[i]=0xffffffff;
+	PC = inst_memory-inst_memory;
 }
 
-void loadInst(MIPS mips, int idx)
-{
-	memcpy(&memory[idx], &mips, sizeof(MIPS));
-}
+void loadInst(MIPS mips, int idx)	  {	memcpy(&inst_memory[idx], &mips, sizeof(MIPS)); }
+void loadData(uint32_t* data, int idx){	memcpy(&data_memory[idx], &data, sizeof(uint32_t)) }
 
 bool run(int idx)
 {
@@ -256,20 +257,20 @@ RFORMAT:
 	case 0b000010:/*srl*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
 	case 0b000011:/*sra*/ reg[mips.R.rd]=reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
 		//Arithmetic and Logical Instructions
-	case 0b100000:/*add*/  reg[mips.R.rd] = reg[mips.R.rs]+reg[mips.R.rt]; break;
-	case 0b100001:/*addu*/ reg[mips.R.rd] = reg[mips.R.rs]+reg[mips.R.rt]; break;
-	case 0b100010:/*sub*/  reg[mips.R.rd] = reg[mips.R.rs]-reg[mips.R.rt]; break;
-	case 0b100011:/*subu*/ reg[mips.R.rd] = reg[mips.R.rs]-reg[mips.R.rt]; break;
+	case 0b100000:/*add*/  reg[mips.R.rd]=reg[mips.R.rs]+reg[mips.R.rt]; break;
+	case 0b100001:/*addu*/ reg[mips.R.rd]=reg[mips.R.rs]+reg[mips.R.rt]; break;
+	case 0b100010:/*sub*/  reg[mips.R.rd]=reg[mips.R.rs]-reg[mips.R.rt]; break;
+	case 0b100011:/*subu*/ reg[mips.R.rd]=reg[mips.R.rs]-reg[mips.R.rt]; break;
 	case 0b011010:/*div*/  break;
 	case 0b011011:/*divu*/ break;
 	case 0b011000:/*mult*/ return true;
 	case 0b011001:/*multu*/return true;
-	case 0b100100:/*and*/  reg[mips.R.rd] = reg[mips.R.rs]&reg[mips.R.rt]; break;
-	case 0b100101:/*or"*/  reg[mips.R.rd] = reg[mips.R.rs]|reg[mips.R.rt]; break;
-	case 0b100110:/*xor*/  reg[mips.R.rd] = reg[mips.R.rs]^reg[mips.R.rt]; break;
-	case 0b100111:/*nor*/  reg[mips.R.rd] = ~(reg[mips.R.rs]|reg[mips.R.rt]); break;
-	case 0b000100:/*sllv*/ reg[mips.R.rd] = (uint32_t)reg[mips.R.rt]<<reg[mips.R.rs]; break;
-	case 0b000110:/*srlv*/ reg[mips.R.rd] = (uint32_t)reg[mips.R.rt]>>reg[mips.R.rs]; break;
+	case 0b100100:/*and*/  reg[mips.R.rd]=reg[mips.R.rs]&reg[mips.R.rt]; break;
+	case 0b100101:/*or"*/  reg[mips.R.rd]=reg[mips.R.rs]|reg[mips.R.rt]; break;
+	case 0b100110:/*xor*/  reg[mips.R.rd]=reg[mips.R.rs]^reg[mips.R.rt]; break;
+	case 0b100111:/*nor*/  reg[mips.R.rd]=~(reg[mips.R.rs]|reg[mips.R.rt]); break;
+	case 0b000100:/*sllv*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<reg[mips.R.rs]; break;
+	case 0b000110:/*srlv*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>reg[mips.R.rs]; break;
 	case 0b000111:/*srav*/ reg[mips.R.rd]=reg[mips.R.rt]>>reg[mips.R.rs]; break;
 		//comparion instructions
 	case 0b101010:/*slt*/  reg[mips.R.rd]=(reg[mips.R.rs]<reg[mips.R.rt])?0x1:0x0; break;
@@ -331,7 +332,7 @@ INPUT:
 	//**********************************************
 	// end of proj1
 	//**********************************************
-	// start of proj2
+	// start of proj2,3
 	else if(!strncmp(&input[0], "loadinst", 8))
 	{	
 		FILE* pFile = fopen(&input[++i], "rb");
@@ -348,6 +349,24 @@ INPUT:
 			goto INPUT;
 		}
 	}	
+	else if(!strncmp( &input[0], "loaddata", 8 ))
+	{
+		FILE* pFile = fopen( &input[++i], "rb" );
+		if(pFile==NULL){ printf( "%s not found. please check filepath\n", &input[i] ); goto INPUT; }
+		else
+		{
+			fileInfo info = setFileInfo( pFile );
+			for(int i = 0; i<info.n_inst; i++)
+			{
+				uint32_t* input = (uint32_t*)malloc(sizeof(uint32_t));
+				int result = fread( input, sizeof(uint32_t), 1, pFile );
+				loadData( input, i );
+				free( input );
+			}
+			fclose( pFile );
+			goto INPUT;
+		}
+	}
 	else if(!strncmp(&input[0], "run", 3))
 	{
 		int inputN = atoi(&input[i++]);
@@ -364,9 +383,9 @@ INPUT:
 	else if(!strncmp(&input[0], "registers", 9))
 	{
 		for(int i = 0; i < 32; i ++) printf("$%d: 0x%08x\n", i, reg[i]);
-		printf("PC: 0x%08x\n", PC);
-		printf("HI: \n");
-		printf("LO: \n");
+		printf( "HI: 0x%08x\n", HI );
+		printf( "LO: 0x%08x\n", LO );
+		printf( "PC: 0x%08x\n", PC );
 		goto INPUT;
 	}
 //***********************************************
