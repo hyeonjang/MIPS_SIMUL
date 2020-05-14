@@ -197,14 +197,14 @@ uint32_t* initMem()
 }
 
 void loadInst(MIPS mips, int idx)	  {	memcpy(&inst_memory[idx], &mips, sizeof(MIPS)); }
-void loadData(uint32_t* data, int idx){	memcpy(&data_memory[idx], &data, sizeof(uint32_t)) }
+void loadData( uint32_t* data, int idx ){ memcpy( &data_memory[idx], &data, sizeof( uint32_t ) ); }
 
 bool run(int idx)
 {
 	MIPS mips;
 
 	PC += 4;
-	if(memory[idx]==0xffffffff) goto UNKWON;
+	if(inst_memory[idx]==0xffffffff) goto UNKWON;
 	memcpy(&mips, &memory[idx], sizeof(MIPS));
 
 	//printInst(mips, idx);
@@ -377,7 +377,7 @@ INPUT:
 			if(!run(k)) break;
 		}
 		printf("Executed %d instructions\n", excuted);
-		free(memory);
+		free(inst_memory);
 		goto INPUT;
 	}
 	else if(!strncmp(&input[0], "registers", 9))
