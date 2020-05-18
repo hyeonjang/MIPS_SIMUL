@@ -47,8 +47,11 @@ typedef union MIPS_t  //It is litte Endian
 } MIPS;
 
 int32_t reg[32];
-int32_t HI;
-int32_t LO;
+struct reg64_t
+{ 
+	int32_t HI;
+	int32_t LO;
+}reg64;
 uint32_t* inst_memory;
 uint32_t* data_memory;
 uint32_t PC, i_mem_start_point, d_mem_start_point;
@@ -127,7 +130,7 @@ void printInst(MIPS mips, int instIdx)
 	default: goto UNKWON;
 	}
 IFORMAT:
-	printf(" $%d, $%d, %d\n", mips.I.rt, mips.I.rs, mips.I.immediate);
+	printf(" $%d, $%d, %0x\n", mips.I.rt, mips.I.rs, mips.I.immediate);
 	return;
 LOAD_IFORMAT:
 	printf(" $%d, %d($%d)\n", mips.I.rs, mips.I.immediate, mips.I.rt);
@@ -211,7 +214,7 @@ bool run(int idx)
 	if(inst_memory[idx]==0xffffffff) goto UNKWON;
 	memcpy(&mips, &inst_memory[idx], sizeof(MIPS));
 
-	//printInst(mips, idx);
+	uint64_t HILO;
 
 	switch (mips.I.op)
 	{
@@ -255,6 +258,7 @@ LOAD_IFORMAT:
 	
 	return true;
 RFORMAT:
+	//uint64_t HILO;
 	switch (mips.R.funct)
 	{
 	case 0b000000:/*sll*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<mips.R.shamt; goto SHIFT_RFORMAT;
@@ -265,10 +269,18 @@ RFORMAT:
 	case 0b100001:/*addu*/ reg[mips.R.rd]=reg[mips.R.rs]+reg[mips.R.rt]; break;
 	case 0b100010:/*sub*/  reg[mips.R.rd]=reg[mips.R.rs]-reg[mips.R.rt]; break;
 	case 0b100011:/*subu*/ reg[mips.R.rd]=reg[mips.R.rs]-reg[mips.R.rt]; break;
-	case 0b011010:/*div*/  break;
-	case 0b011011:/*divu*/ break;
-	case 0b011000:/*mult*/ LO=reg[mips.R.rs]*reg[mips.R.rt]; return true;
-	case 0b011001:/*multu*/LO=reg[mips.R.rs]*reg[mips.R.rt]; return true;
+	case 0b011010:/*div*/  reg64.HI=reg[mips.R.rs]%reg[mips.R.rt]; reg64.LO=reg[mips.R.rs]/reg[mips.R.rt]; break;
+	case 0b011011:/*divu*/ 
+		reg64.HI=(uint32_t)reg[mips.R.rs]%reg[mips.R.rt]; 
+		reg64.LO=(uint32_t)reg[mips.R.rs]/reg[mips.R.rt]; break;
+	case 0b011000:/*mult*/  
+		reg64.HI=((reg[mips.R.rs]*(reg[mips.R.rt]>>16))&-1)>>16;
+		reg64.LO=((reg[mips.R.rs]*reg[mips.R.rt])&-1); 
+		return true;
+	case 0b011001:/*multu*/
+		reg64.HI=((reg[mips.R.rs]*((uint32_t)reg[mips.R.rt]>>16))&-1)>>16;
+		reg64.LO=((reg[mips.R.rs]*reg[mips.R.rt])&-1); 
+		return true;
 	case 0b100100:/*and*/  reg[mips.R.rd]=reg[mips.R.rs]&reg[mips.R.rt]; break;
 	case 0b100101:/*or"*/  reg[mips.R.rd]=reg[mips.R.rs]|reg[mips.R.rt]; break;
 	case 0b100110:/*xor*/  reg[mips.R.rd]=reg[mips.R.rs]^reg[mips.R.rt]; break;
@@ -280,10 +292,10 @@ RFORMAT:
 	case 0b101010:/*slt*/  reg[mips.R.rd]=(reg[mips.R.rs]<reg[mips.R.rt])?0x1:0x0; break;
 	case 0b101011:/*sltu*/ reg[mips.R.rd]=(reg[mips.R.rs]<(uint32_t)reg[mips.R.rt])?0x1:0x0; break;
 		//load instructions
-	case 0b010000:/*mfhi*/ return true;
-	case 0b010010:/*mflo*/ return true;
-	case 0b010001:/*mthi*/ return true;
-	case 0b010011:/*mtlo*/ return true;
+	case 0b010000:/*mfhi*/ reg[mips.R.rd]=reg64.HI; return true;
+	case 0b010010:/*mflo*/ reg[mips.R.rd]=reg64.LO; return true;
+	case 0b010001:/*mthi*/ reg64.HI=reg[mips.R.rs]; return true;
+	case 0b010011:/*mtlo*/ reg64.LO=reg[mips.R.rs]; return true;
 		//jump instructions
 	case 0b001000:/*jr*/   return true;
 	case 0b001001:/*jalr*/ return true;
@@ -382,27 +394,28 @@ INPUT:
 		}
 		printf("Executed %d instructions\n", excuted);
 		free(inst_memory);
+		free(data_memory);
 		goto INPUT;
 	}
 	else if(!strncmp(&input[0], "registers", 9))
 	{
 		for(int i = 0; i < 32; i ++) printf("$%d: 0x%08x\n", i, reg[i]);
-		printf( "HI: 0x%08x\n", HI );
-		printf( "LO: 0x%08x\n", LO );
+		printf( "HI: 0x%08x\n", reg64.HI );
+		printf( "LO: 0x%08x\n", reg64.LO );
 		printf( "PC: 0x%08x\n", PC );
 		goto INPUT;
 	}
 //***********************************************
 //debugging code for proj3
-/*	else if(!strncmp(&input[0], "memory", 6))
+	else if(!strncmp(&input[0], "memory", 6))
 	{
-		for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &memory[i], memory[i]);
+		for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &inst_memory[i], inst_memory[i]);
 		goto INPUT;
 	}
-	else if(!strncmp(&input[0], "proj2", 5))
+	else if(!strncmp(&input[0], "proj3", 5))
 	{
 		
-		FILE* pFile = fopen("../proj2_2.bin", "rb");
+		FILE* pFile = fopen("../_test/proj3/test1_t.dat", "rb");
 		if (pFile == NULL){ printf("%s not found. please check filepath\n", &input[i]); goto INPUT;}
 		else
 		{
@@ -416,7 +429,7 @@ INPUT:
 
 			fclose(pFile);
 	 	}
-		pFile = fopen("../proj2_2.bin", "rb");
+		pFile = fopen("../_test/proj3/test1_t.dat", "rb");
 		if (pFile == NULL){ printf("%s not found. please check filepath\n", &input[i]); goto INPUT;}
 		else
 		{
@@ -428,7 +441,7 @@ INPUT:
 			}
 			fclose(pFile);
 		}
-		int inputN = 32; //atoi(&input[i++]);
+		int inputN = 50; //atoi(&input[i++]);
 		int excuted = 0;
 		for(int k=0;k<inputN;k++)
 		{ 	
@@ -436,11 +449,14 @@ INPUT:
 			if(!run(k)) break;
 		}
 		printf("Executed %d instructions\n", excuted);
-		free(memory);
+		free(inst_memory);
+		free(data_memory);
 		for(int i = 0; i < 32; i ++) printf("$%d: 0x%08x\n", i, reg[i]);
-		printf("PC: 0x%08x\n", PC);
+		printf( "HI: 0x%08x\n", reg64.HI );
+		printf( "LO: 0x%08x\n", reg64.LO );
+		printf( "PC: 0x%08x\n", PC );
 	}
-*/
+
 //*********************************************
 	else 
 	{ 
