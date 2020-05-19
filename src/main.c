@@ -32,7 +32,7 @@ typedef union MIPS_t  //It is litte Endian
 
 	struct IFormat_t
 	{
-		int immediate : 16; //16bits, 2bytes
+		int16_t immediate : 16; //16bits, 2bytes
 		uint rt : 5; //5bits, 1bytes
 		uint rs : 5; //5bits, 1bytes
 		uint op : 6;
@@ -65,27 +65,9 @@ fileInfo setFileInfo(FILE* file)
 	info.fileSize = ftell(file);
 	rewind(file);
 
-	info.n_inst = info.fileSize / sizeof(int);
-	
-	//printf("file size %d\n", info.fileSize);
-	//printf("nInst %d\n", info.n_inst);
+	info.n_inst = info.fileSize/sizeof(int32_t);
 
 	return info;
-}
-
-MIPS readRegfromFile(FILE* file)
-{
-	MIPS mips;
-
-	char* input = (char*)malloc(sizeof(char)*4);
-	int result = fread(input, sizeof(char), 4, file);
-	memcpy(&mips.input[0], &input[3], sizeof(MIPS));
-	memcpy(&mips.input[1], &input[2], sizeof(MIPS));
-	memcpy(&mips.input[2], &input[1], sizeof(MIPS));
-	memcpy(&mips.input[3], &input[0], sizeof(MIPS));
-
-	free(input);
-	return mips;
 }
 
 void printInst(MIPS mips, int instIdx)
@@ -117,8 +99,7 @@ void printInst(MIPS mips, int instIdx)
 	case 0b100011: printf("lw");	goto LOAD_IFORMAT;
 		//should be checked
 	case 0b001111: printf("lui");	
-		reg[mips.I.rt] = (mips.I.immediate<<16);
-		printf(" $%d, 0x%x\n", mips.I.rt, mips.I.immediate); return; 
+		printf(" $%d, %x\n", mips.I.rt, ((uint32_t)mips.I.immediate<<16)); return; 
 		//store instructions			
 	case 0b101000: printf("sb");	goto LOAD_IFORMAT;
 	case 0b101001: printf("sh");	goto LOAD_IFORMAT;
@@ -133,7 +114,7 @@ IFORMAT:
 	printf(" $%d, $%d, %0x\n", mips.I.rt, mips.I.rs, mips.I.immediate);
 	return;
 LOAD_IFORMAT:
-	printf(" $%d, %d($%d)\n", mips.I.rs, mips.I.immediate, mips.I.rt);
+	printf(" $%d, %d($%d)\n", mips.I.rt, mips.I.immediate, mips.I.rs);
 	return;
 RFORMAT:
 	switch (mips.R.funct)
@@ -203,8 +184,59 @@ uint32_t* initMem()
 	d_mem_start_point = data_memory-data_memory+0x10000000;
 }
 
-void loadInst( MIPS mips, int idx )	{ memcpy( &inst_memory[idx], &mips, sizeof(MIPS) ); }
-void loadData( uint32_t* data, int idx ){ memcpy( &data_memory[idx], &data, sizeof(uint32_t) ); }
+void loadInst( MIPS mips, int idx ){ memcpy( &inst_memory[idx], &mips, sizeof(MIPS) ); }
+void loadData( char* data, fileInfo info )
+{ 
+	for(int i=0; i<info.n_inst+1; i++)
+		memcpy(&data_memory[i], &data[4*i], sizeof(int32_t));
+}
+
+MIPS readInstfromFile(FILE* file)
+{
+	MIPS mips;
+
+	char* input = (char*)malloc(sizeof(char)*4);
+	int result = fread(input, sizeof(char), 4, file);
+	memcpy(&mips.input[0], &input[3], sizeof(MIPS));
+	memcpy(&mips.input[1], &input[2], sizeof(MIPS));
+	memcpy(&mips.input[2], &input[1], sizeof(MIPS));
+	memcpy(&mips.input[3], &input[0], sizeof(MIPS));
+	free(input);
+
+	return mips;
+}
+
+char* readDatafromFile(FILE* file, fileInfo info)
+{
+	int n_inst = info.n_inst;
+
+	char* input = (char*)malloc(sizeof(char)*4);
+	char* data  = (char*)malloc(sizeof(int32_t)*(n_inst+1));
+
+	for(int i=0; i<n_inst; i++)
+	{
+		int result = fread(input, sizeof(char), 4, file);
+		memcpy(&data[4*i],   &input[3], sizeof(char));
+		memcpy(&data[4*i+1], &input[2], sizeof(char));
+		memcpy(&data[4*i+2], &input[1], sizeof(char));
+		memcpy(&data[4*i+3], &input[0], sizeof(char));
+	}
+
+	int remain = info.fileSize%sizeof(int32_t);
+	if(!remain){ free(input);return data; }
+
+	data[4*n_inst]=0xff; data[4*n_inst+1]=0xff; data[4*n_inst+2]=0xff; data[4*n_inst]=0xff;
+
+	for(int i=0; i<remain; i++)
+	{	
+		int result = fread(input, sizeof(char), 1, file);
+		memcpy(&data[4*n_inst+3-i], &input[0], sizeof(char));
+	}
+	free(input);
+
+	return data;
+}
+
 
 bool run(int idx)
 {
@@ -214,7 +246,15 @@ bool run(int idx)
 	if(inst_memory[idx]==0xffffffff) goto UNKWON;
 	memcpy(&mips, &inst_memory[idx], sizeof(MIPS));
 
-	uint64_t HILO;
+	//***************************************
+	// the variable for load data instruction 
+	int32_t reg_mips_I_rs, d_mem_idx;
+	if((mips.I.op>>3)==0b100) 
+	{
+		reg_mips_I_rs = d_mem_start_point - reg[mips.I.rs];
+		d_mem_idx = mips.I.immediate>>2+reg_mips_I_rs;
+	}
+	//***************************************
 
 	switch (mips.I.op)
 	{
@@ -225,7 +265,7 @@ bool run(int idx)
 	case 0b001001:/*addi*/ reg[mips.I.rt]=reg[mips.I.rs]+mips.I.immediate; break;
 	case 0b001000:/*addiu*/reg[mips.I.rt]=reg[mips.I.rs]+(uint32_t)mips.I.immediate; break;
 	case 0b001100:/*andi*/ reg[mips.I.rt]=reg[mips.I.rs]&mips.I.immediate; break;
-	case 0b001101:/*ori"*/ reg[mips.I.rt]=reg[mips.I.rs]|mips.I.immediate; break;
+	case 0b001101:/*ori"*/ reg[mips.I.rt]=reg[mips.I.rs]|(uint32_t)mips.I.immediate; break;
 	case 0b001110:/*xori*/ reg[mips.I.rt]=reg[mips.I.rs]^mips.I.immediate; break;
 		//comparion instructions
 	case 0b001010:/*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; break;
@@ -238,9 +278,12 @@ bool run(int idx)
 	case 0b100100:/*lbu*/goto LOAD_IFORMAT;
 	case 0b100001:/*lh*/ goto LOAD_IFORMAT;
 	case 0b100101:/*lhu*/goto LOAD_IFORMAT;
-	case 0b100011:/*lw*/ goto LOAD_IFORMAT;
+	case 0b100011:/*lw*/ reg[mips.I.rt]=data_memory[d_mem_idx]; goto LOAD_IFORMAT;
 		//should be checked
-	case 0b001111:/*lui*/ reg[mips.I.rt] = (mips.I.immediate<<16); return true;
+	case 0b001111:/*lui*/ 
+			reg[mips.I.rt] = (((uint32_t)mips.I.immediate)<<16); 
+			printf(" $%d, %x\n", mips.I.rt, ((uint32_t)mips.I.immediate<<16));
+			return true;
 		//store instructions			
 	case 0b101000:/*sb*/ goto LOAD_IFORMAT;
 	case 0b101001:/*sh*/ goto LOAD_IFORMAT;
@@ -337,7 +380,7 @@ INPUT:
 
 			for(int i = 0; i < info.n_inst; i++)
 			{
-				MIPS mipsBuf = readRegfromFile(pFile);
+				MIPS mipsBuf = readInstfromFile(pFile);
 				printInst(mipsBuf, i);
 			}
 
@@ -358,7 +401,7 @@ INPUT:
 			fileInfo info = setFileInfo(pFile);	
 			for(int i = 0; i < info.n_inst; i++)
 			{
-				MIPS mipsBuf = readRegfromFile(pFile);
+				MIPS mipsBuf = readInstfromFile(pFile);
 				loadInst(mipsBuf, i);
 			}
 			fclose(pFile);
@@ -372,13 +415,11 @@ INPUT:
 		else
 		{
 			fileInfo info = setFileInfo( pFile );
-			for(int i = 0; i<info.n_inst; i++)
-			{
-				uint32_t* input = (uint32_t*)malloc(sizeof(uint32_t));
-				int result = fread( input, sizeof(uint32_t), 1, pFile );
-				loadData( input, i );
-				free( input );
-			}
+			
+			char* data = readDatafromFile( pFile, info );
+			loadData( data, info );
+			free(data);
+
 			fclose( pFile );
 			goto INPUT;
 		}
@@ -414,8 +455,10 @@ INPUT:
 	}
 	else if(!strncmp(&input[0], "proj3", 5))
 	{
-		
-		FILE* pFile = fopen("../_test/proj3/test1_t.dat", "rb");
+		char* t_inst_str = "../_test/proj3/test1_t.dat";
+		char* t_data_str = "../_test/proj3/test2_d.dat";
+
+		FILE* pFile = fopen( t_inst_str, "rb" );
 		if (pFile == NULL){ printf("%s not found. please check filepath\n", &input[i]); goto INPUT;}
 		else
 		{
@@ -423,24 +466,41 @@ INPUT:
 
 			for(int i = 0; i < info.n_inst; i++)
 			{
-				MIPS mipsBuf = readRegfromFile(pFile);
+				MIPS mipsBuf = readInstfromFile(pFile);
 				printInst(mipsBuf, i);
 			}
 
 			fclose(pFile);
 	 	}
-		pFile = fopen("../_test/proj3/test1_t.dat", "rb");
+		pFile = fopen( t_inst_str, "rb");
 		if (pFile == NULL){ printf("%s not found. please check filepath\n", &input[i]); goto INPUT;}
 		else
 		{
 			fileInfo info = setFileInfo(pFile);	
 			for(int i = 0; i < info.n_inst; i++)
 			{
-				MIPS mipsBuf = readRegfromFile(pFile);
+				MIPS mipsBuf = readInstfromFile(pFile);
 				loadInst(mipsBuf, i);
 			}
 			fclose(pFile);
 		}
+
+		FILE* d_File = fopen( t_data_str, "rb" );
+		if(pFile==NULL){ printf( "%s not found. please check filepath\n", &input[i] ); goto INPUT; }
+		else
+		{
+			fileInfo info = setFileInfo( d_File );
+			
+			char* data = readDatafromFile( d_File, info );
+			loadData( data, info );
+			free(data);
+
+			fclose( d_File );
+		}
+		
+		//for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &inst_memory[i], inst_memory[i]);
+		for(int i=0;i<4;i++) printf("0x%08x: 0x%08x\n", &data_memory[i], data_memory[i]);
+
 		int inputN = 50; //atoi(&input[i++]);
 		int excuted = 0;
 		for(int k=0;k<inputN;k++)
