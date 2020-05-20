@@ -40,7 +40,7 @@ typedef union MIPS_t  //It is litte Endian
 
 	struct jump_t
 	{
-		int address : 26;
+		int32_t target : 26;
 		uint op : 6;
 	}J;
 
@@ -52,8 +52,10 @@ struct reg64_t
 	int32_t HI;
 	int32_t LO;
 }reg64;
-uint32_t* inst_memory;
-uint32_t* data_memory;
+
+//@@todo make default int32_t not uint32_t
+int32_t* inst_memory;
+int32_t* data_memory;
 uint32_t PC, i_mem_start_point, d_mem_start_point;
 
 fileInfo setFileInfo(FILE* file)
@@ -99,19 +101,19 @@ void printInst(MIPS mips, int instIdx)
 	case 0b100011: printf("lw");	goto LOAD_IFORMAT;
 		//should be checked
 	case 0b001111: printf("lui");	
-		printf(" $%d, %x\n", mips.I.rt, ((uint32_t)mips.I.immediate<<16)); return; 
+		printf(" $%d, %x\n", mips.I.rt, ((uint16_t)mips.I.immediate<<16)); return; 
 		//store instructions			
 	case 0b101000: printf("sb");	goto LOAD_IFORMAT;
 	case 0b101001: printf("sh");	goto LOAD_IFORMAT;
 	case 0b101011: printf("sw");	goto LOAD_IFORMAT;
 		//jump instructions
-	case 0b000010: printf("j");	printf(" %d\n", mips.J.address); return;
-	case 0b000011: printf("jal");	printf(" %d\n", mips.J.address); return;
+	case 0b000010: printf("j");	printf(" %d\n", mips.J.target); return;
+	case 0b000011: printf("jal");	printf(" %d\n", mips.J.target); return;
 
 	default: goto UNKWON;
 	}
 IFORMAT:
-	printf(" $%d, $%d, %0x\n", mips.I.rt, mips.I.rs, mips.I.immediate);
+	printf(" $%d, $%d, %0x\n", mips.I.rt, mips.I.rs,(uint16_t)mips.I.immediate);
 	return;
 LOAD_IFORMAT:
 	printf(" $%d, %d($%d)\n", mips.I.rt, mips.I.immediate, mips.I.rs);
@@ -238,75 +240,74 @@ char* readDatafromFile(FILE* file, fileInfo info)
 }
 
 
-bool run(int idx)
+uint32_t run(int inputN)
 {
 	MIPS mips;
-
+	uint32_t excuted=0;
+for(int i=0; i<inputN; i++)
+{
+BRANCH:
+	excuted++;
 	PC += 4;
-	if(inst_memory[idx]==0xffffffff) goto UNKWON;
-	memcpy(&mips, &inst_memory[idx], sizeof(MIPS));
+	int32_t idx_PC=(PC-4)/4;
+
+	//printf("[run]%d %0x value$3 %d\n", i, idx_PC, idx_PC, reg[3]);
+
+	if(inst_memory[idx_PC]==0xffffffff) goto UNKWON;
+	memcpy(&mips, &inst_memory[idx_PC], sizeof(MIPS));
 
 	//***************************************
 	// the variable for load data instruction 
 	int32_t reg_mips_I_rs, d_mem_idx;
-	if((mips.I.op>>3)==0b100) 
+	if((mips.I.op&0b100000)==0b100000) 
 	{
 		reg_mips_I_rs = d_mem_start_point - reg[mips.I.rs];
 		d_mem_idx = mips.I.immediate>>2+reg_mips_I_rs;
 	}
 	//***************************************
-
+IFORMAT:
 	switch (mips.I.op)
 	{
 		//not i format
 	case 0b000000:/*printf("sll"); break;*/ goto RFORMAT; 
 
 		//Arithmetic and Logical Instructions
-	case 0b001001:/*addi*/ reg[mips.I.rt]=reg[mips.I.rs]+mips.I.immediate; break;
-	case 0b001000:/*addiu*/reg[mips.I.rt]=reg[mips.I.rs]+(uint32_t)mips.I.immediate; break;
-	case 0b001100:/*andi*/ reg[mips.I.rt]=reg[mips.I.rs]&mips.I.immediate; break;
-	case 0b001101:/*ori"*/ reg[mips.I.rt]=reg[mips.I.rs]|(uint32_t)mips.I.immediate; break;
-	case 0b001110:/*xori*/ reg[mips.I.rt]=reg[mips.I.rs]^mips.I.immediate; break;
+	case 0b001001:/*addi*/ reg[mips.I.rt]=reg[mips.I.rs]+mips.I.immediate; 		 goto DONE;
+	case 0b001000:/*addiu*/reg[mips.I.rt]=reg[mips.I.rs]+(uint16_t)mips.I.immediate; goto DONE;
+	case 0b001100:/*andi*/ reg[mips.I.rt]=reg[mips.I.rs]&(uint16_t)mips.I.immediate; goto DONE;
+	case 0b001101:/*ori"*/ reg[mips.I.rt]=reg[mips.I.rs]|(uint16_t)mips.I.immediate; goto DONE;
+	case 0b001110:/*xori*/ reg[mips.I.rt]=reg[mips.I.rs]^(uint16_t)mips.I.immediate; goto DONE;
 		//comparion instructions
-	case 0b001010:/*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; break;
-	case 0b001011:/*sltui*/reg[mips.I.rt]=(reg[mips.I.rs]<(uint32_t)mips.I.immediate)?0x1:0x0; break;
+	case 0b001010:/*slti*/ reg[mips.I.rt]=(reg[mips.I.rs]<mips.I.immediate)?0x1:0x0; goto DONE;
+	case 0b001011:/*sltui*/reg[mips.I.rt]=(reg[mips.I.rs]<(uint16_t)mips.I.immediate)?0x1:0x0; goto DONE;
 		//branch instructions
-	case 0b000100:/*beq*/ return true;
+	case 0b000100:/*beq*/ if(reg[mips.I.rs]==reg[mips.I.rt]){ PC+=mips.I.immediate<<2; goto BRANCH; } else goto DONE;
 	case 0b000101:/*bne*/ return true;
 		//load instructions
-	case 0b100000:/*lb*/ goto LOAD_IFORMAT;
-	case 0b100100:/*lbu*/goto LOAD_IFORMAT;
-	case 0b100001:/*lh*/ goto LOAD_IFORMAT;
-	case 0b100101:/*lhu*/goto LOAD_IFORMAT;
-	case 0b100011:/*lw*/ reg[mips.I.rt]=data_memory[d_mem_idx]; goto LOAD_IFORMAT;
+	case 0b100000:/*lb*/ reg[mips.I.rt]=data_memory[d_mem_idx]; 		    goto DONE;
+	case 0b100100:/*lbu*/reg[mips.I.rt]=((uint8_t)data_memory[d_mem_idx]);	    goto DONE;
+	case 0b100001:/*lh*/ reg[mips.I.rt]=data_memory[d_mem_idx]>>16; 	    goto DONE;
+	case 0b100101:/*lhu*/reg[mips.I.rt]=((uint32_t)data_memory[d_mem_idx])>>16; goto DONE;
+	case 0b100011:/*lw*/ reg[mips.I.rt]=data_memory[d_mem_idx]; 		    goto DONE;	
 		//should be checked
-	case 0b001111:/*lui*/ 
-			reg[mips.I.rt] = (((uint32_t)mips.I.immediate)<<16); 
-			printf(" $%d, %x\n", mips.I.rt, ((uint32_t)mips.I.immediate<<16));
-			return true;
+	case 0b001111:/*lui*/reg[mips.I.rt]=(((uint16_t)mips.I.immediate)<<16); goto DONE;
 		//store instructions			
-	case 0b101000:/*sb*/ goto LOAD_IFORMAT;
-	case 0b101001:/*sh*/ goto LOAD_IFORMAT;
-	case 0b101011:/*sw*/ goto LOAD_IFORMAT;
+	case 0b101000:/*sb*/ data_memory[d_mem_idx]=reg[mips.I.rt]>>24; goto DONE;
+	case 0b101001:/*sh*/ data_memory[d_mem_idx]=reg[mips.I.rt]>>16; goto DONE;
+	case 0b101011:/*sw*/ data_memory[d_mem_idx]=reg[mips.I.rt]; 	goto DONE;
 		//jump instructions
-	case 0b000010:/*j*/   return true;
-	case 0b000011:/*jal*/ return true;
+	case 0b000010:/*j*/   PC=(PC&0xf0000000)|(mips.J.target<<2); goto BRANCH;
+	case 0b000011:/*jal*/ goto BRANCH;
 
 	default: goto UNKWON;
 	}
-IFORMAT:
-	 
-	return true;
-LOAD_IFORMAT:
-	
-	return true;
+
 RFORMAT:
-	//uint64_t HILO;
 	switch (mips.R.funct)
 	{
-	case 0b000000:/*sll*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<mips.R.shamt; goto SHIFT_RFORMAT;
-	case 0b000010:/*srl*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
-	case 0b000011:/*sra*/ reg[mips.R.rd]=reg[mips.R.rt]>>mips.R.shamt; goto SHIFT_RFORMAT;
+	case 0b000000:/*sll*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]<<mips.R.shamt; goto DONE;
+	case 0b000010:/*srl*/ reg[mips.R.rd]=(uint32_t)reg[mips.R.rt]>>mips.R.shamt; goto DONE;
+	case 0b000011:/*sra*/ reg[mips.R.rd]=reg[mips.R.rt]>>mips.R.shamt; goto DONE;
 		//Arithmetic and Logical Instructions
 	case 0b100000:/*add*/  reg[mips.R.rd]=reg[mips.R.rs]+reg[mips.R.rt]; break;
 	case 0b100001:/*addu*/ reg[mips.R.rd]=reg[mips.R.rs]+reg[mips.R.rt]; break;
@@ -319,11 +320,11 @@ RFORMAT:
 	case 0b011000:/*mult*/  
 		reg64.HI=((reg[mips.R.rs]*(reg[mips.R.rt]>>16))&-1)>>16;
 		reg64.LO=((reg[mips.R.rs]*reg[mips.R.rt])&-1); 
-		return true;
+		goto DONE;
 	case 0b011001:/*multu*/
 		reg64.HI=((reg[mips.R.rs]*((uint32_t)reg[mips.R.rt]>>16))&-1)>>16;
 		reg64.LO=((reg[mips.R.rs]*reg[mips.R.rt])&-1); 
-		return true;
+		goto DONE;
 	case 0b100100:/*and*/  reg[mips.R.rd]=reg[mips.R.rs]&reg[mips.R.rt]; break;
 	case 0b100101:/*or"*/  reg[mips.R.rd]=reg[mips.R.rs]|reg[mips.R.rt]; break;
 	case 0b100110:/*xor*/  reg[mips.R.rd]=reg[mips.R.rs]^reg[mips.R.rt]; break;
@@ -335,23 +336,24 @@ RFORMAT:
 	case 0b101010:/*slt*/  reg[mips.R.rd]=(reg[mips.R.rs]<reg[mips.R.rt])?0x1:0x0; break;
 	case 0b101011:/*sltu*/ reg[mips.R.rd]=(reg[mips.R.rs]<(uint32_t)reg[mips.R.rt])?0x1:0x0; break;
 		//load instructions
-	case 0b010000:/*mfhi*/ reg[mips.R.rd]=reg64.HI; return true;
-	case 0b010010:/*mflo*/ reg[mips.R.rd]=reg64.LO; return true;
-	case 0b010001:/*mthi*/ reg64.HI=reg[mips.R.rs]; return true;
-	case 0b010011:/*mtlo*/ reg64.LO=reg[mips.R.rs]; return true;
+	case 0b010000:/*mfhi*/ reg[mips.R.rd]=reg64.HI; goto DONE;
+	case 0b010010:/*mflo*/ reg[mips.R.rd]=reg64.LO; goto DONE;
+	case 0b010001:/*mthi*/ reg64.HI=reg[mips.R.rs]; goto DONE;
+	case 0b010011:/*mtlo*/ reg64.LO=reg[mips.R.rs]; goto DONE;
 		//jump instructions
-	case 0b001000:/*jr*/   return true;
-	case 0b001001:/*jalr*/ return true;
+	case 0b001000:/*jr*/   goto BRANCH;
+	case 0b001001:/*jalr*/ goto BRANCH;
 		//syscall
-	case 0b001100:/*syscall*/ return true;
+	case 0b001100:/*syscall*/ return excuted;
 
 	default: goto UNKWON;
 	}
-	return true;
-SHIFT_RFORMAT: return true;
+DONE:; 
+}
 UNKWON:
 	printf("unknown instruction\n");
-	return false;
+	return excuted;
+
 }
 
 
@@ -427,12 +429,7 @@ INPUT:
 	else if(!strncmp(&input[0], "run", 3))
 	{
 		int inputN = atoi(&input[i++]);
-		int excuted = 0;
-		for(int k=0;k<inputN;k++)
-		{ 	
-			excuted++;
-			if(!run(k)) break;
-		}
+		int excuted = run(inputN);
 		printf("Executed %d instructions\n", excuted);
 		free(inst_memory);
 		free(data_memory);
@@ -455,7 +452,7 @@ INPUT:
 	}
 	else if(!strncmp(&input[0], "proj3", 5))
 	{
-		char* t_inst_str = "../_test/proj3/test1_t.dat";
+		char* t_inst_str = "../_test/proj3/test3_t.dat";
 		char* t_data_str = "../_test/proj3/test2_d.dat";
 
 		FILE* pFile = fopen( t_inst_str, "rb" );
@@ -499,22 +496,17 @@ INPUT:
 		}
 		
 		//for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &inst_memory[i], inst_memory[i]);
-		for(int i=0;i<4;i++) printf("0x%08x: 0x%08x\n", &data_memory[i], data_memory[i]);
 
-		int inputN = 50; //atoi(&input[i++]);
-		int excuted = 0;
-		for(int k=0;k<inputN;k++)
-		{ 	
-			excuted++;
-			if(!run(k)) break;
-		}
+		int inputN = 100; //atoi(&input[i++]);
+		int excuted = run(inputN);
 		printf("Executed %d instructions\n", excuted);
-		free(inst_memory);
-		free(data_memory);
 		for(int i = 0; i < 32; i ++) printf("$%d: 0x%08x\n", i, reg[i]);
 		printf( "HI: 0x%08x\n", reg64.HI );
 		printf( "LO: 0x%08x\n", reg64.LO );
 		printf( "PC: 0x%08x\n", PC );
+		//for(int i=0;i<16;i++) printf("0x%08x: 0x%08x\n", &data_memory[i], data_memory[i]);
+		free(inst_memory);
+		free(data_memory);
 	}
 
 //*********************************************
