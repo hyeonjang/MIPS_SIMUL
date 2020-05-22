@@ -54,7 +54,7 @@ struct reg64_t
 }reg64;
 
 //@@todo make default int32_t not uint32_t
-int32_t* inst_memory;
+int32_t* i_mem;
 uint8_t* d_mem;
 uint32_t PC, i_mem_start_point, d_mem_start_point;
 
@@ -177,16 +177,16 @@ void initReg()
 
 uint32_t* initMem()
 {
-	inst_memory = malloc(sizeof(uint32_t)*MEMSIZE);
-	for(int i=0;i<MEMSIZE;i++) inst_memory[i]=0xffffffff;
-	PC=i_mem_start_point = inst_memory-inst_memory;
+	i_mem = malloc(sizeof(uint32_t)*MEMSIZE);
+	for(int i=0;i<MEMSIZE;i++) i_mem[i]=0xffffffff;
+	PC=i_mem_start_point = i_mem-i_mem;
 
 	d_mem = (uint8_t*)malloc(sizeof(uint8_t)*MEMSIZE*4);
 	for(int i=0;i<MEMSIZE*4;i++) d_mem[i]=0xffffffff;
 	d_mem_start_point = d_mem-d_mem+0x10000000;
 }
 
-void loadInst( MIPS mips, int idx ){ memcpy( &inst_memory[idx], &mips, sizeof(MIPS) ); }
+void loadInst( MIPS mips, int idx ){ memcpy( &i_mem[idx], &mips, sizeof(MIPS) ); }
 void loadData( char* data, fileInfo info )
 { 
 	for(int i=0; i<info.fileSize; i++)
@@ -249,8 +249,8 @@ BRANCH:
 
 //	printf("[run]%d %0x %0x\n", idx_PC, PC, reg[29]);
 
-	if(inst_memory[idx_PC]==0xffffffff) goto UNKWON;
-	memcpy(&mips, &inst_memory[idx_PC], sizeof(MIPS));
+	if(i_mem[idx_PC]==0xffffffff) goto UNKWON;
+	memcpy(&mips, &i_mem[idx_PC], sizeof(MIPS));
 
 	//***************************************
 	// the variable for load data instruction 
@@ -280,19 +280,17 @@ IFORMAT:
 	case 0b000100:/*beq*/ if(reg[mips.I.rs]==reg[mips.I.rt]){ PC+=mips.I.immediate<<2; goto BRANCH; } else goto DONE;
 	case 0b000101:/*bne*/ if(reg[mips.I.rs]!=reg[mips.I.rt]){ PC+=mips.I.immediate<<2; goto BRANCH; } else goto DONE;
 		//load instructions
-	case 0b100000:/*lb*/ reg[mips.I.rt]=d_mem[d_m_idx]; 		    goto DONE;
-	case 0b100100:/*lbu*/reg[mips.I.rt]=((uint8_t)d_mem[d_m_idx]);	    goto DONE;
-	case 0b100001:/*lh*/ reg[mips.I.rt]=d_mem[d_m_idx]<<24|d_mem[d_m_idx+1]<<16; goto DONE;
-	case 0b100101:/*lhu*/reg[mips.I.rt]=d_mem[d_m_idx]<<24|d_mem[d_m_idx+1]<<16; goto DONE;
-	case 0b100011:/*lw*/ 	printf("[data]%0x%0x%0x%0x\n", d_mem[d_m_idx], d_mem[d_m_idx+1], d_mem[d_m_idx+2], d_mem[d_m_idx+3]);
-				reg[mips.I.rt]=d_mem[d_m_idx]<<24&0xff000000|d_mem[d_m_idx+1]<<16&0xff0000
-				|d_mem[d_m_idx+2]<<8&0xff00|d_mem[d_m_idx+3]&0xff;   printf("%0x\n", reg[mips.I.rt]); goto DONE;	
+	case 0b100000:/*lb*/ reg[mips.I.rt]=((int8_t)d_mem[d_m_idx])<<24&0xff000000; 	goto DONE;
+	case 0b100100:/*lbu*/reg[mips.I.rt]=d_mem[d_m_idx]<<24&0xff000000;				goto DONE;
+	case 0b100001:/*lh*/ reg[mips.I.rt]=((int8_t)d_mem[d_m_idx])<<24&0xff000000|d_mem[d_m_idx+1]<<16&0xff0000; goto DONE;
+	case 0b100101:/*lhu*/reg[mips.I.rt]=d_mem[d_m_idx]<<24&0xff000000|d_mem[d_m_idx+1]<<16&0xff0000; goto DONE;
+	case 0b100011:/*lw*/ reg[mips.I.rt]=d_mem[d_m_idx]<<24&0xff000000|d_mem[d_m_idx+1]<<16&0xff0000|d_mem[d_m_idx+2]<<8&0xff00|d_mem[d_m_idx+3]&0xff; goto DONE;	
 		//should be checked
 	case 0b001111:/*lui*/reg[mips.I.rt]=(((uint16_t)mips.I.immediate)<<16); goto DONE;
 		//store instructions			
-	case 0b101000:/*sb*/ goto DONE;
-	case 0b101001:/*sh*/ goto DONE;
-	case 0b101011:/*sw*/ goto DONE;
+	case 0b101000:/*sb*/ d_mem[d_m_idx]=reg[mips.I.rt]>>24; goto DONE;
+	case 0b101001:/*sh*/ d_mem[d_m_idx]=reg[mips.I.rt]>>24; d_mem[d_m_idx+1]=reg[mips.I.rt]>>16; goto DONE;
+	case 0b101011:/*sw*/ d_mem[d_m_idx]=reg[mips.I.rt]>>24; d_mem[d_m_idx+1]=reg[mips.I.rt]>>16;d_mem[d_m_idx+2]=reg[mips.I.rt]>>8; d_mem[d_m_idx+3]=reg[mips.I.rt]; goto DONE;
 		//jump instructions
 	case 0b000010:/*j*/   PC=(PC&0xf0000000)|(mips.J.target<<2); goto BRANCH;
 	case 0b000011:/*jal*/ reg[31]=PC; PC=(PC&0xf0000000)|(mips.J.target<<2); goto BRANCH;
@@ -439,7 +437,7 @@ INPUT:
 		int inputN = atoi(&input[i++]);
 		int excuted = run(inputN);
 		printf("Executed %d instructions\n", excuted);
-		free(inst_memory);
+		free(i_mem);
 		free(d_mem);
 		goto INPUT;
 	}
@@ -455,7 +453,7 @@ INPUT:
 //debugging code for proj3
 	else if(!strncmp(&input[0], "memory", 6))
 	{
-		for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &inst_memory[i], inst_memory[i]);
+		for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &i_mem[i], i_mem[i]);
 		goto INPUT;
 	}
 	else if(!strncmp(&input[0], "proj3", 5))
@@ -503,7 +501,7 @@ INPUT:
 			fclose( d_File );
 		}
 		
-		//for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &inst_memory[i], inst_memory[i]);
+		//for(int i=0;i<MEMSIZE;i++) printf("0x%08x: 0x%08x\n", &i_mem[i], i_mem[i]);
 
 		int inputN = 14; //atoi(&input[i++]);
 		int excuted = run(inputN);
@@ -514,7 +512,7 @@ INPUT:
 		printf( "PC: 0x%08x\n", PC );
 		for(int i=0;i<9;i++) printf("%x %x\n", &d_mem[i], d_mem[i]);
 		printf("\n");
-		free(inst_memory);
+		free(i_mem);
 		free(d_mem);
 	}
 
