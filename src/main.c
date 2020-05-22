@@ -82,7 +82,7 @@ void printInst(MIPS mips, int instIdx)
 	case 0b000000:/*printf("sll"); break;*/ goto RFORMAT; 
 
 		//Arithmetic and Logical Instructions
-	case 0b001000: printf("addi");	printf(" $%d, $%d, %d\n", mips.I.rt, mips.I.rs, mips.I.immediate); break;
+	case 0b001000: printf("addi");	printf(" $%d, $%d, %d\n", mips.I.rt, mips.I.rs, mips.I.immediate); return;
 	case 0b001001: printf("addiu");	break;
 	case 0b001100: printf("andi");	break;
 	case 0b001101: printf("ori");	break;
@@ -458,8 +458,8 @@ INPUT:
 	}
 	else if(!strncmp(&input[0], "proj3", 5))
 	{
-		char* t_inst_str = "../_test/proj3/test6_t.dat";
-		char* t_data_str = "../_test/proj3/test6_d.dat";
+		char* t_inst_str = "../_test/proj3/test4_t.dat";
+		char* t_data_str = "../_test/proj3/test4_d.dat";
 
 		FILE* pFile = fopen( t_inst_str, "rb" );
 		if (pFile == NULL){ printf("%s not found. please check filepath\n", &input[i]); goto INPUT;}
