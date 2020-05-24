@@ -8,7 +8,7 @@ addi    $a0,$a0,4     //make $t0 to 0x10000004
 addi    $v0,$zero,4   //set $v0 = 4
 syscall               //Invoke syscall number 4: print string starting from $a0 : "\n"
 lui     $a0,0x1000
-addi    $a0,$a0,6     //make $t0 to 0x10000004
+addi    $a0,$a0,6     //make $t0 to 0x10000006
 addi    $v0,$zero,4   //set $v0 = 4
 syscall               //Invoke syscall number 4: print string starting from $a0 : "Hello World\n"
 addi    $v0,$zero,10  //set $v0 = 10
