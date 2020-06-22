@@ -6,7 +6,8 @@
 
 #include <string>
 #include <vector>
-#include <byteswap.h>
+
+using uint=unsigned int;
 
 struct fileinfo
 {
@@ -31,20 +32,20 @@ fileinfo setFileInfo(FILE* file)
 struct inst_t
 {
 	char type;
-	struct t0{ int32_t offset:4; int32_t index:10; int32_t tag:18; };
-	struct t1{ int32_t offset:6; int32_t index:10; int32_t tag:16; };
+	struct t0{ uint offset:4; uint index:10; uint tag:18; };
+	struct t1{ uint offset:6; uint index:10; uint tag:16; };
 	union{ int32_t addr; t0 _0; t1 _1; };
 
 	// constructors
 	inst_t(){};
-	inst_t(char t, uint32_t buf) { type=t; addr=buf; };
+	inst_t(char t, int32_t buf) { type=t; addr=buf; };
 };
 
-struct mem_t
-{
-	std::vector<int> data;
-	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
-} mem;
+//struct mem_t
+//{
+//	std::vector<int> data;
+//	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+//} mem;
 
 struct block_t
 {
@@ -55,11 +56,12 @@ struct block_t
 
 	block_t(){ valid=0; dirty=0; tag=0; }
 
-	template<class T> bool compare(T inst){ if(!valid) return false; if(tag!=inst.tag) return false; return true; };
-	template<class T> void fetch(T inst){ valid=1; tag=inst.tag; /*data[0]=mem[0];*/ };
-	
+	template<class T> bool compare(T inst){ if(!valid) return false; if(tag!=inst.tag) return false; return true; }
+	template<class T> void fetch(T inst){ valid=1; tag=inst.tag; dirty=0; /*data[0]=mem[0];*/ }
+
 	// write back features
-	template<class T> bool write(T inst){ if(dirty==0){ dirty=!dirty; return false; } else dirty=!dirty; return true; }
+	template<class T> bool is_dirty(T inst){ return dirty; }
+	template<class T> void set_dirty(T inst, bool _t){ dirty=_t; }
 };
 
 struct cache_t0
@@ -71,18 +73,19 @@ struct cache_t0
 	template<class T> void fetch(T inst){ b[inst.index].fetch(inst); }
 	
 	// overrided operators
-	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
 };
 
 struct set_t2 
 {	
 	bool LRU; 
 	block_t b[2];	
-	set_t2():LRU(-1){}
+	set_t2():LRU(0){}
 
-	template<class T> bool compare(T inst) { return LRU=b[0].compare(inst)?0:b[1].compare(inst)?1:NULL; }
-	template<class T> void fetch(T inst) { if(LRU==-1) return; b[!LRU].fetch(inst); LRU=!LRU; }
-	template<class T> bool write(T inst){ return b[!LRU].write(inst); }
+	template<class T> bool compare(T inst) { return b[0].compare(inst)||b[1].compare(inst); }
+	template<class T> void fetch(T inst) { b[LRU].fetch(inst); LRU=!LRU; }
+	template<class T> bool is_dirty(T inst){ return b[LRU].is_dirty(inst); }
+	template<class T> void set_dirty(T inst, bool _t){ b[LRU].set_dirty(inst, _t); LRU=!LRU; }
 };
 struct cache_t1
 {
@@ -90,10 +93,11 @@ struct cache_t1
 
 	template<class T> bool compare(T inst){ return set[inst.index].compare(inst); }
 	template<class T> void fetch(T inst){ set[inst.index].fetch(inst); }
-	template<class T> bool write(T inst){ return set[inst.index].write(inst); }
+	template<class T> bool is_dirty(T inst){ return set[inst.index].is_dirty(inst); }
+	template<class T> void set_dirty(T inst, bool _t){ set[inst.index].set_dirty(inst, _t); }
 	
 	// overrided operators
-	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
 };
 
 class cache_sim
@@ -108,6 +112,7 @@ class cache_sim
 public:
 	// constructor
 	cache_sim(){}
+	~cache_sim(){}
 
 	// functions
 	void load_inst(const char* path)
@@ -116,46 +121,60 @@ public:
 		FILE* fp = fopen(path, "r");
 		
 		fileinfo info = setFileInfo(fp);
-		for(int i=0; i<info.n_inst; i++)
+		insts.reserve(info.n_inst);
+		for(uint i=0; i<info.n_inst; i++)
 		{
 			fgets(buff, 12, fp);
-			inst_t inst = inst_t(buff[0], uint32_t(std::stoi(&buff[2], nullptr, 16)));
+			inst_t inst = inst_t(buff[0], std::stoll(&buff[2], nullptr, 16));
 			insts.emplace_back(inst);
 		}
 		fclose(fp);
 	}
 
+	void excute(int type){ printf("%d\n", uint(insts.size())); type==0?excute0():excute1(); insts.clear(); insts.shrink_to_fit(); }
+
 	void excute0()
 	{
 		for(auto& inst : insts)
 		{
-			printf("inst %c %0x\n", inst.type, inst.addr);
 			inst_t::t0 i = inst._0;
 			if(inst.type=='L')
 			{
 				if(cache0.compare(i)) continue;
 				cache0.fetch(i); miss++;
 			}
-			else if(inst.type=='S')	write++;
+			else if(inst.type=='S')
+			{
+				if(!cache0.compare(i)) miss++;
+				write++;
+			}
 		}
 	}
 
 	void excute1()
 	{
-		printf("%d\n", int(insts.size()));
 		for(auto& inst:insts)
 		{
 			inst_t::t1 i = inst._1;
 			if(inst.type=='L')
 			{
 				if(cache1.compare(i)) continue; 
-				cache1.fetch(i);  miss++;
+				cache1.fetch(i); miss++;
 			}
 			else if(inst.type=='S')
 			{
-				if(cache1.compare(i)) continue;
-				if(cache1.write(i)) write++;
-				miss++; 
+				// write hit
+				if(cache1.compare(i))
+				{
+					if(!cache1.is_dirty(i)) cache1.set_dirty(i, true);
+					else if(cache1.is_dirty(i)) { write++; cache1.set_dirty(i, false); }
+				}
+				// write miss
+				else if(!cache1.compare(i)) 
+				{
+					if(cache1.is_dirty(i)) { write++; cache1.set_dirty(i, false); }
+					cache1.fetch(i); miss++;
+				}
 			}
 		}
 	}
@@ -167,8 +186,14 @@ public:
 int main(int argc, char** argv)
 {
 	cache_sim cache;
-	cache.load_inst("./trace1.txt");
-	cache.excute0();
+
+	std::string trace = "./trace1.txt";	std::string sr(argv[0]);
+
+	//printf("%s\n", trace.c_str());
+	trace = trace+sr+".txt";
+		
+	cache.load_inst(trace.c_str());
+	cache.excute(1);
 	printf("%d %d\n", cache.return_miss(), cache.return_write());
 
 }
