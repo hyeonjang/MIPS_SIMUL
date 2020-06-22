@@ -6,6 +6,7 @@
 
 #include <string>
 #include <vector>
+#include <byteswap.h>
 
 struct fileinfo
 {
@@ -36,13 +37,13 @@ struct inst_t
 
 	// constructors
 	inst_t(){};
-	inst_t(char t, int32_t buf) { type=t; addr=buf; };
+	inst_t(char t, uint32_t buf) { type=t; addr=buf; };
 };
 
 struct mem_t
 {
 	std::vector<int> data;
-	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
 } mem;
 
 struct block_t
@@ -70,7 +71,7 @@ struct cache_t0
 	template<class T> void fetch(T inst){ b[inst.index].fetch(inst); }
 	
 	// overrided operators
-	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
 };
 
 struct set_t2 
@@ -92,7 +93,7 @@ struct cache_t1
 	template<class T> bool write(T inst){ return set[inst.index].write(inst); }
 	
 	// overrided operators
-	__forceinline int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
+	// int& operator[]( ptrdiff_t i ){ return ((int*)this)[i]; }
 };
 
 class cache_sim
@@ -118,7 +119,7 @@ public:
 		for(int i=0; i<info.n_inst; i++)
 		{
 			fgets(buff, 12, fp);
-			inst_t inst = inst_t(buff[0], std::stoi(&buff[2], nullptr, 16));
+			inst_t inst = inst_t(buff[0], uint32_t(std::stoi(&buff[2], nullptr, 16)));
 			insts.emplace_back(inst);
 		}
 		fclose(fp);
@@ -128,6 +129,7 @@ public:
 	{
 		for(auto& inst : insts)
 		{
+			printf("inst %c %0x\n", inst.type, inst.addr);
 			inst_t::t0 i = inst._0;
 			if(inst.type=='L')
 			{
@@ -165,7 +167,7 @@ public:
 int main(int argc, char** argv)
 {
 	cache_sim cache;
-	cache.load_inst("./trace3.txt");
+	cache.load_inst("./trace1.txt");
 	cache.excute0();
 	printf("%d %d\n", cache.return_miss(), cache.return_write());
 
